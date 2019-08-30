@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"image/png"
 	"log"
+	"math"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -64,43 +65,105 @@ func extractTileCoords(path string) (TileCoords, error) {
 		return TileCoords{}, fmt.Errorf("extracting y: %v", err)
 	}
 
-	// TODO: validate tile
+	max := 1 << coords.Z
+	if coords.X < 0 || coords.X >= max || coords.Y < 0 || coords.Y >= max {
+		return TileCoords{}, fmt.Errorf("invalid tile coordinates: %v", coords)
+	}
 
 	return coords, nil
 }
 
 func renderTile(coords TileCoords) image.Image {
-	log.Printf("rendering: %v", coords)
-
 	extent := tileExtent(coords)
-	log.Printf("extent: %v", extent)
-
-	tile := image.NewGray(image.Rect(0, 0, tileSize, tileSize))
+	tile := image.NewRGBA(image.Rect(0, 0, tileSize, tileSize))
 	for i := 0; i < tileSize; i++ {
 		for j := 0; j < tileSize; j++ {
 			c := Vector{
 				extent.Min.X + (extent.Max.X-extent.Min.X)*float64(i)/tileSize,
 				extent.Min.Y + (extent.Max.Y-extent.Min.Y)*float64(j)/tileSize,
 			}
-			colour := color.Gray{0xff}
-			if mandelbrot(c) {
-				colour = color.Gray{}
-			}
-			tile.SetGray(i, j, colour)
+			iterationCount := mandelbrot(c)
+			colour := escapeColour(iterationCount)
+			tile.SetRGBA(i, j, colour)
 		}
 	}
 	return tile
 }
 
-func mandelbrot(c Vector) bool {
+func escapeColour(iterationCount float64) color.RGBA {
+	iterationCount *= 25 // artistically chosen multiplier
+	return hslToRGB(math.Mod(iterationCount+360, 360), 0.5, 0.5)
+}
+
+func hslToRGB(hue, saturation, lightness float64) color.RGBA {
+	if hue < 0 || hue > 360 {
+		panic("hue must be from 0 to 360")
+	}
+	if saturation < 0 || saturation > 1 {
+		panic("saturation must be between 0 and 1")
+	}
+	if lightness < 0 || lightness > 1 {
+		panic("lightness must be between 0 and 1")
+	}
+
+	c := (1 - math.Abs(2*lightness-1)) * saturation // chroma
+	hueAdj := hue / 60
+	x := c * (1 - math.Abs(math.Mod(hueAdj, 2)-1))
+
+	var r, g, b float64
+	switch {
+	case hueAdj <= 1:
+		r, g, b = c, x, 0
+	case hueAdj <= 2:
+		r, g, b = x, c, 0
+	case hueAdj <= 3:
+		r, g, b = 0, c, x
+	case hueAdj <= 4:
+		r, g, b = 0, x, c
+	case hueAdj <= 5:
+		r, g, b = x, 0, c
+	case hueAdj <= 6:
+		r, g, b = c, 0, x
+	default:
+		panic(false)
+	}
+
+	m := lightness - 0.5*c
+	r += m
+	g += m
+	b += m
+
+	if r < 0 || r > 1.0 {
+		panic(r)
+	}
+	if g < 0 || g > 1.0 {
+		panic(g)
+	}
+	if b < 0 || b > 1.0 {
+		panic(b)
+	}
+
+	return color.RGBA{uint8(r * 0xff), uint8(g * 0xff), uint8(b * 0xff), 0xff}
+}
+
+// mandelbrot returns 0 for numbers in the mandelbrot set, or the smoothed
+// iteration count before escape has been confirmed.
+func mandelbrot(c Vector) float64 {
+	const maxIter = 1000
 	var z Vector
-	for i := 0; i < 1000; i++ {
+	iterate := func() {
 		z = Vector{z.X*z.X - z.Y*z.Y + c.X, 2*z.X*z.Y + c.Y}
+	}
+	for i := 0; i < maxIter; i++ {
+		iterate()
 		if z.X*z.X+z.Y*z.Y > 4 {
-			return false
+			iterate()
+			iterate()
+			modulus := math.Sqrt(z.X*z.X + z.Y*z.Y)
+			return float64(i) - math.Log(math.Log(modulus))/math.Log(2)
 		}
 	}
-	return true
+	return 0
 }
 
 type Vector struct {
