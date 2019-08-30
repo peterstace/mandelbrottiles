@@ -63,7 +63,7 @@ func extractTileCoords(path string) (TileCoords, error) {
 		return TileCoords{}, fmt.Errorf("extracting y: %v", err)
 	}
 
-	max := 1 << coords.Z
+	max := 1 << uint(coords.Z)
 	if coords.X < 0 || coords.X >= max || coords.Y < 0 || coords.Y >= max {
 		return TileCoords{}, fmt.Errorf("invalid tile coordinates: %v", coords)
 	}
