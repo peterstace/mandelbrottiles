@@ -19,8 +19,6 @@ func main() {
 	log.Fatal(http.ListenAndServe(*listenAddr, tileServer()))
 }
 
-const tileSize = 256
-
 func tileServer() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		coords, err := extractTileCoords(r.URL.Path)
@@ -74,6 +72,7 @@ func extractTileCoords(path string) (TileCoords, error) {
 }
 
 func renderTile(coords TileCoords) image.Image {
+	const tileSize = 256
 	extent := tileExtent(coords)
 	tile := image.NewRGBA(image.Rect(0, 0, tileSize, tileSize))
 	for i := 0; i < tileSize; i++ {
