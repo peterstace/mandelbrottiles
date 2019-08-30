@@ -7,7 +7,6 @@ import (
 	"image/color"
 	"image/png"
 	"log"
-	"math"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -84,7 +83,7 @@ func renderTile(coords TileCoords) image.Image {
 				extent.Min.Y + (extent.Max.Y-extent.Min.Y)*float64(j)/tileSize,
 			}
 			colour := color.Gray{0xff}
-			if mandelbox(c) {
+			if mandelbrot(c) {
 				colour = color.Gray{}
 			}
 			tile.SetGray(i, j, colour)
@@ -93,31 +92,11 @@ func renderTile(coords TileCoords) image.Image {
 	return tile
 }
 
-func mandelbox(c Vector) bool {
+func mandelbrot(c Vector) bool {
 	var z Vector
-	for i := 0; i < 10; i++ {
-		if z.X > 1 {
-			z.X = 2 - z.X
-		} else if z.X < -1 {
-			z.X = -2 - z.X
-		}
-		if z.Y > 1 {
-			z.Y = 2 - z.Y
-		} else if z.Y < -1 {
-			z.Y = -2 - z.Y
-		}
-		mag := math.Sqrt(z.X*z.X + z.Y*z.Y)
-		if mag < 0.5 {
-			z = z.Scale(4)
-		} else if mag < 1 {
-			z = z.Scale(mag * mag)
-		}
-
-		const s = 2
-		z = z.Scale(s)
-		z = z.Add(c)
-
-		if z.X*z.X+z.Y*z.Y > 100 {
+	for i := 0; i < 1000; i++ {
+		z = Vector{z.X*z.X - z.Y*z.Y + c.X, 2*z.X*z.Y + c.Y}
+		if z.X*z.X+z.Y*z.Y > 4 {
 			return false
 		}
 	}
@@ -130,10 +109,6 @@ type Vector struct {
 
 func (v Vector) Sub(u Vector) Vector {
 	return Vector{v.X - u.X, v.Y - u.Y}
-}
-
-func (v Vector) Add(u Vector) Vector {
-	return Vector{v.X + u.X, v.Y + u.Y}
 }
 
 func (v Vector) Scale(f float64) Vector {
@@ -158,7 +133,7 @@ func tileExtent(coords TileCoords) Extent {
 
 	extent.Min = extent.Min.Sub(Vector{0.5, 0.5})
 	extent.Max = extent.Max.Sub(Vector{0.5, 0.5})
-	extent.Min = extent.Min.Scale(16)
-	extent.Max = extent.Max.Scale(16)
+	extent.Min = extent.Min.Scale(4)
+	extent.Max = extent.Max.Scale(4)
 	return extent
 }
